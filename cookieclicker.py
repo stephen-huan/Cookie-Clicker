@@ -73,6 +73,15 @@ def cookie_clicker(choice):
         i += 1
         cookie.click()
 
+def cookies(): return parse(find("cookies").text.split("\n")[0].split()[0])
+
+def cookies_per_click():
+    while True:
+        try:
+            return parse(find("subsection", By.CLASS_NAME).find_elements_by_class_name("listing")[6].text.split()[-1], float)
+        except StaleElementReferenceException:
+            pass
+
 def measure_cps(length=10): #about 22 cps
     """ Measures the CPS. Should be done on a clean run (no buildings) """
     count = cookies()
@@ -84,7 +93,7 @@ def measure_cps(length=10): #about 22 cps
 #MAIN METHODS
 def display():
     """ Displays information to the user """
-    cprint("Current cookies in bank: " + str(cookies()), 'blue', end='\n')
+    cprint("Current cookies in bank: " + str(current_cookies), 'blue', end='\n')
     cprint("Current cookies per second (CPS): {}".format(round(current_cps, 2)), 'green', end='\n')
     cprint("Guesstimated rate: {}; Cookies/click: {}; CPS from mouse: {}".format(round(rate, 2), cookies_a_click, round(rate*cookies_a_click, 2)), 'green', end='\n')
     for buyable in buyables: print(buyable)
@@ -97,7 +106,7 @@ def parse(str, dtype=int):
         words = {"million" : 10**6}
         for word in words:
             if word in str.split()[1]:
-                return words[word]*dtype(str.split()[0])
+                return dtype(words[word]*float(str.split()[0]))
     return dtype(str)
 
 def get_tooltips():
@@ -107,8 +116,13 @@ def get_tooltips():
     lengths = (len(driver.find_elements_by_css_selector("div.product.unlocked")) + 1, len(find("upgrades").find_elements_by_css_selector("div")))
     for j, name in enumerate(["product", "upgrade"]):
         for i in range(lengths[j]):
-            ActionChains(driver).move_to_element(find(name + str(i))).perform()
-            rtn[j].append(driver.find_element_by_id("tooltip").text)
+            while True:
+                try:
+                    ActionChains(driver).move_to_element(find(name + str(i))).perform()
+                    rtn[j].append(driver.find_element_by_id("tooltip").text)
+                    break
+                except StaleElementReferenceException:
+                    pass
     return rtn
 
 def get_buyables():
@@ -144,7 +158,7 @@ def get_buyables():
                     if "fingers" in buyable.name:
                         num = 0.1*sum(x.number for x in products)/cookies_a_click
                     if "cookie" in buyable.name:
-                        buyable.cps = 0.01*sum(x.cps for x in product)
+                        buyable.cps = 0.01*current_cps
                     for word in words:
                         if word in descr:
                             if word == "mouse":
@@ -175,9 +189,8 @@ if __name__ == "__main__":
     rate = 20
     while True:
         buyables = get_buyables()
-        current_cookies = parse(find("cookies").text.split("\n")[0].split()[0])
-        current_cps = parse(find("cookies").text.split("\n")[1].split()[-1])
-        cookies_a_click = parse(find("subsection", By.CLASS_NAME).find_elements_by_class_name("listing")[6].text.split()[-1], float)
+        current_cookies, current_cps = cookies(), parse(find("cookies").text.split("\n")[1].split()[-1], float)
+        cookies_a_click = cookies_per_click()
         choice = max(buyables, key=lambda x: h(x))
         display()
         cookie_clicker(choice)
